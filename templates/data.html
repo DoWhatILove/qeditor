@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Table</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; cursor: pointer; }
+        th a { text-decoration: none; color: black; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        .message { padding: 10px; margin: 10px 0; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <h1>Data Table</h1>
+    <p><a href="{{ url_for('index') }}">Upload New File</a> | <a href="{{ url_for('charts') }}">View Charts</a> | <a href="{{ url_for('download') }}">Download Data</a></p>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="message {{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+    {% if data %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Query Text</th>
+                    <th>Segment</th>
+                    <th><a href="{{ url_for('data_table', sort='Question Intent') }}">Question Intent{{ sort_indicators['Question Intent'] }}</a></th>
+                    <th><a href="{{ url_for('data_table', sort='Sub Intent') }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a></th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                    <tr>
+                        <td>{{ row.text }}</td>
+                        <td>{{ row.segment }}</td>
+                        <td>{{ row.question_intent }}</td>
+                        <td>{{ row.sub_intent }}</td>
+                        <td><a href="{{ url_for('edit', index=row.index) }}">Edit</a></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No data available. Please upload a file.</p>
+    {% endif %}
+</body>
+</html>

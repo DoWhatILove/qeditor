@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Charts</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .charts { display: flex; justify-content: space-between; }
+        img { max-width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <h1>Charts</h1>
+    <p><a href="{{ url_for('index') }}">Upload New File</a> | <a href="{{ url_for('data_table') }}">View Data</a></p>
+    {% if error %}
+        <p>{{ error }}</p>
+    {% else %}
+        <div class="charts">
+            <div>
+                <h2>Segment Distribution</h2>
+                <img src="data:image/png;base64,{{ pie_chart }}" alt="Segment Pie Chart">
+            </div>
+            <div>
+                <h2>Sub-Intent Distribution by Question Intent</h2>
+                <img src="data:image/png;base64,{{ bar_chart }}" alt="Stacked Bar Chart">
+            </div>
+        </div>
+    {% endif %}
+</body>
+</html>
