@@ -7,53 +7,60 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/data.css') }}">
 </head>
 <body>
-    <div style="margin: 20px;">
-        <div style="margin-bottom: 20px;">
-            <a href="{{ url_for('index') }}">Select New Query Set</a> |
-            <a href="{{ url_for('charts') }}">View Charts</a> |
-            <a href="{{ url_for('add') }}">Add New Data Point</a> |
-            <a href="{{ url_for('download') }}">Download Data</a>
+    <div class="container">
+        <nav class="navbar">
+            <a href="{{ url_for('index') }}" class="nav-link">Select New Query Set</a>
+            <a href="{{ url_for('charts') }}" class="nav-link">View Charts</a>
+            <a href="{{ url_for('add') }}" class="nav-link">Add New Data Point</a>
+            <a href="{{ url_for('download') }}" class="nav-link">Download Data</a>
             {% if session.get('has_added_data', False) %}
-                | <a href="{{ url_for('download_added') }}">Download Added Data</a>
+                <a href="{{ url_for('download_added') }}" class="nav-link">Download Added Data</a>
             {% endif %}
-        </div>
+        </nav>
 
         <h1>Data Table</h1>
-        <p>Total rows: {{ total_rows }} | Filtered rows: {{ filtered_rows }}</p>
+        <p class="row-count">Total rows: {{ total_rows }} | Filtered rows: {{ filtered_rows }}</p>
 
-        <form method="GET" action="{{ url_for('data_table') }}">
-            <label for="question_intent">Question Intent:</label>
-            <input type="text" id="question_intent" name="question_intent" value="{{ search_params.question_intent }}" placeholder="e.g., Information">
-
-            <label for="sub_intent">Sub Intent:</label>
-            <input type="text" id="sub_intent" name="sub_intent" value="{{ search_params.sub_intent }}" placeholder="e.g., Definition">
-
-            <label for="segment">Segment:</label>
-            <input type="text" id="segment" name="segment" value="{{ search_params.segment }}" placeholder="e.g., Technology">
-
-            <button type="submit">Filter</button>
+        <form method="GET" action="{{ url_for('data_table') }}" class="search-form">
+            <div class="form-group">
+                <label for="question_intent">Question Intent:</label>
+                <input type="text" id="question_intent" name="question_intent" value="{{ search_params.question_intent }}" placeholder="e.g., Information" aria-label="Filter by Question Intent">
+            </div>
+            <div class="form-group">
+                <label for="sub_intent">Sub Intent:</label>
+                <input type="text" id="sub_intent" name="sub_intent" value="{{ search_params.sub_intent }}" placeholder="e.g., Definition" aria-label="Filter by Sub Intent">
+            </div>
+            <div class="form-group">
+                <label for="segment">Segment:</label>
+                <input type="text" id="segment" name="segment" value="{{ search_params.segment }}" placeholder="e.g., Technology" aria-label="Filter by Segment">
+            </div>
+            <button type="submit" class="search-button">Filter</button>
         </form>
 
-        <table border="1" style="margin-top: 20px; width: 100%;">
+        <table role="grid" class="data-table">
             <thead>
                 <tr>
-                    <th class="resizable">Index</th>
-                    <th class="resizable">Text</th>
-                    <th class="resizable">Segment</th>
-                    <th class="resizable"><a href="{{ url_for('data_table', sort='Question Intent', **search_params) }}">Question Intent{{ sort_indicators['Question Intent'] }}</a></th>
-                    <th class="resizable"><a href="{{ url_for('data_table', sort='Sub Intent', **search_params) }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a></th>
-                    <th class="resizable">Actions</th>
+                    <th class="resizable" scope="col">Index</th>
+                    <th class="resizable" scope="col">Text</th>
+                    <th class="resizable" scope="col">Segment</th>
+                    <th class="resizable" scope="col">
+                        <a href="{{ url_for('data_table', sort='Question Intent', **search_params) }}">Question Intent{{ sort_indicators['Question Intent'] }}</a>
+                    </th>
+                    <th class="resizable" scope="col">
+                        <a href="{{ url_for('data_table', sort='Sub Intent', **search_params) }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a>
+                    </th>
+                    <th class="resizable" scope="col">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in data %}
-                <tr>
+                <tr class="table-row">
                     <td>{{ row.index }}</td>
-                    <td style="word-wrap: break-word; max-width: 300px;">{{ row.text }}</td>
+                    <td class="text-cell">{{ row.text }}</td>
                     <td>{{ row.segment }}</td>
                     <td>{{ row.question_intent }}</td>
                     <td>{{ row.sub_intent }}</td>
-                    <td><a href="{{ url_for('edit', index=row.index) }}">Edit</a></td>
+                    <td><a href="{{ url_for('edit', index=row.index) }}" class="action-link">Edit</a></td>
                 </tr>
                 {% endfor %}
             </tbody>
