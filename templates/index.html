@@ -1,21 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Query Set Editor</title>
+    <title>Query Editor</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .message { padding: 10px; margin: 10px 0; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1 {
+            font-size: 20px;
+        }
+        .message {
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        select, button {
+            padding: 8px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
-    <h1>Query Set Editor</h1>
-    <form method="post" enctype="multipart/form-data">
-        <label for="file">Select Query Set (.tsv):</label>
-        <input type="file" name="file" accept=".tsv" required>
-        <button type="submit">Upload</button>
-    </form>
+    <h1>Query Editor</h1>
+    {% if data_loaded %}
+        <p><a href="{{ url_for('index') }}">Select New Query Set</a> | <a href="{{ url_for('data_table') }}">View Data</a> | <a href="{{ url_for('charts') }}">View Charts</a> | <a href="{{ url_for('download') }}">Download Data</a></p>
+    {% endif %}
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -23,8 +50,15 @@
             {% endfor %}
         {% endif %}
     {% endwith %}
-    {% if data %}
-        <p><a href="{{ url_for('data_table') }}">View Data</a> | <a href="{{ url_for('charts') }}">View Charts</a></p>
-    {% endif %}
+    <form method="post" enctype="multipart/form-data">
+        <label for="tsv_file">Select a TSV file:</label>
+        <select name="tsv_file" id="tsv_file" required>
+            <option value="" disabled selected>Select a file</option>
+            {% for file in tsv_files %}
+                <option value="{{ file }}">{{ file }}</option>
+            {% endfor %}
+        </select>
+        <button type="submit">Load File</button>
+    </form>
 </body>
 </html>

@@ -5,7 +5,7 @@ class QueryData:
         self.query = query
         self.metadata = metadata
 
-def load_query_set(file_path):
+def load_query_data(file_path):
     data = []
     with open(file_path, 'r', encoding='utf-8') as f:
         for line in f:

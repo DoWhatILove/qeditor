@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Edit Data Point</title>
+    <title>Add Data Point</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -33,10 +33,10 @@
             font-family: Arial, sans-serif;
         }
         textarea[name="query_text"] {
-            height: 120px; /* Approx 10 rows at 12px */
+            height: 120px;
         }
         textarea:not([name="query_text"]), input[type="text"] {
-            height: 50px; /* Approx 3 rows at 12px */
+            height: 50px;
         }
         button {
             margin-top: 20px;
@@ -52,8 +52,8 @@
     </style>
 </head>
 <body>
-    <h1>Edit Data Point {{ index }}</h1>
-    <p><a href="{{ url_for('index') }}">Select New Query Set</a> | <a href="{{ url_for('data_table') }}">View Data</a> | <a href="{{ url_for('charts') }}">View Charts</a> | <a href="{{ url_for('download') }}">Download Data</a></p>
+    <h1>Add New Data Point</h1>
+    <p><a href="{{ url_for('index') }}">Select New Query Set</a> | <a href="{{ url_for('data_table') }}">View Data</a> | <a href="{{ url_for('charts') }}">View Charts</a> | <a href="{{ url_for('add') }}">Add New Data Point</a> {% if session.get('has_added_data') %} | <a href="{{ url_for('download_added') }}">Download Added Data</a> {% endif %} | <a href="{{ url_for('download') }}">Download Data</a></p>
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
@@ -76,7 +76,7 @@
                 <textarea name="metadata_{{ field }}" id="metadata_{{ field }}">{{ metadata_data[field] }}</textarea>
             {% endif %}
         {% endfor %}
-        <button type="submit">Save Changes</button>
+        <button type="submit">Add Data Point</button>
     </form>
 </body>
 </html>

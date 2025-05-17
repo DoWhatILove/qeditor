@@ -1,54 +1,64 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Table</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; cursor: pointer; }
-        th a { text-decoration: none; color: black; }
-        tr:nth-child(even) { background-color: #f9f9f9; }
-        .message { padding: 10px; margin: 10px 0; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/data.css') }}">
 </head>
 <body>
-    <h1>Data Table</h1>
-    <p><a href="{{ url_for('index') }}">Upload New File</a> | <a href="{{ url_for('charts') }}">View Charts</a> | <a href="{{ url_for('download') }}">Download Data</a></p>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="message {{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    {% if data %}
-        <table>
+    <div style="margin: 20px;">
+        <div style="margin-bottom: 20px;">
+            <a href="{{ url_for('index') }}">Select New Query Set</a> |
+            <a href="{{ url_for('charts') }}">View Charts</a> |
+            <a href="{{ url_for('add') }}">Add New Data Point</a> |
+            <a href="{{ url_for('download') }}">Download Data</a>
+            {% if session.get('has_added_data', False) %}
+                | <a href="{{ url_for('download_added') }}">Download Added Data</a>
+            {% endif %}
+        </div>
+
+        <h1>Data Table</h1>
+        <p>Total rows: {{ total_rows }} | Filtered rows: {{ filtered_rows }}</p>
+
+        <form method="GET" action="{{ url_for('data_table') }}">
+            <label for="question_intent">Question Intent:</label>
+            <input type="text" id="question_intent" name="question_intent" value="{{ search_params.question_intent }}" placeholder="e.g., Information">
+
+            <label for="sub_intent">Sub Intent:</label>
+            <input type="text" id="sub_intent" name="sub_intent" value="{{ search_params.sub_intent }}" placeholder="e.g., Definition">
+
+            <label for="segment">Segment:</label>
+            <input type="text" id="segment" name="segment" value="{{ search_params.segment }}" placeholder="e.g., Technology">
+
+            <button type="submit">Filter</button>
+        </form>
+
+        <table border="1" style="margin-top: 20px; width: 100%;">
             <thead>
                 <tr>
-                    <th>Query Text</th>
-                    <th>Segment</th>
-                    <th><a href="{{ url_for('data_table', sort='Question Intent') }}">Question Intent{{ sort_indicators['Question Intent'] }}</a></th>
-                    <th><a href="{{ url_for('data_table', sort='Sub Intent') }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a></th>
-                    <th>Actions</th>
+                    <th class="resizable">Index</th>
+                    <th class="resizable">Text</th>
+                    <th class="resizable">Segment</th>
+                    <th class="resizable"><a href="{{ url_for('data_table', sort='Question Intent', **search_params) }}">Question Intent{{ sort_indicators['Question Intent'] }}</a></th>
+                    <th class="resizable"><a href="{{ url_for('data_table', sort='Sub Intent', **search_params) }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a></th>
+                    <th class="resizable">Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in data %}
-                    <tr>
-                        <td>{{ row.text }}</td>
-                        <td>{{ row.segment }}</td>
-                        <td>{{ row.question_intent }}</td>
-                        <td>{{ row.sub_intent }}</td>
-                        <td><a href="{{ url_for('edit', index=row.index) }}">Edit</a></td>
-                    </tr>
+                <tr>
+                    <td>{{ row.index }}</td>
+                    <td style="word-wrap: break-word; max-width: 300px;">{{ row.text }}</td>
+                    <td>{{ row.segment }}</td>
+                    <td>{{ row.question_intent }}</td>
+                    <td>{{ row.sub_intent }}</td>
+                    <td><a href="{{ url_for('edit', index=row.index) }}">Edit</a></td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
-    {% else %}
-        <p>No data available. Please upload a file.</p>
-    {% endif %}
+    </div>
+    <script src="{{ url_for('static', filename='js/resize_columns.js') }}"></script>
 </body>
 </html>

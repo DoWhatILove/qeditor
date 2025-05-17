@@ -1,192 +1,132 @@
-import os
-from flask import Flask, request, render_template, redirect, url_for, flash, send_file
-from collections import Counter
-import matplotlib.pyplot as plt
-import numpy as np
-from io import BytesIO
-import base64
 import json
-from src.data import load_query_set
+import os
+from flask import Flask, request, render_template, redirect, url_for, flash, send_file, session
+from src.data import QueryData
+from src.utils import (
+    setup_logging, ensure_folders_exist, get_tsv_files, load_file, reset_session_and_globals,
+    get_search_params, filter_data, sort_data, prepare_table_data, get_sort_indicators,
+    generate_charts, process_form_fields, save_data_to_file, append_data_to_file, get_file_paths
+)
 
 app = Flask(__name__)
-app.secret_key = 'supersecretkey'  # Required for flash messages
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'supersecretkey')
+app.config['DATA_FOLDER'] = 'data'
+app.config['MODIFIED_FOLDER'] = 'modified'
+app.config['ADDED_FOLDER'] = 'added'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-# Ensure upload folder exists
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-
-# In-memory storage for data (for simplicity; use a database for production)
+# In-memory storage
 data = []
-sort_column = None
-sort_reverse = False
-
-# UI configuration constants
-PLOT_FIGSIZE = (15, 6)
-PLOT_WSPACE = 0.4
-PLOT_BOTTOM_MARGIN = 0.3
-
-def plot_pie(counts):
-    """Create a pie chart and return as base64-encoded image."""
-    fig, ax = plt.subplots(figsize=(7.5, 6))
-    labels = list(counts.keys())
-    sizes = list(counts.values())
-    total = sum(sizes)
-    colors = plt.cm.Paired(range(len(labels)))
-    explode = [0.1] * len(labels)
-    wedges, _, autotexts = ax.pie(
-        sizes, explode=explode, colors=colors, autopct='%1.1f%%',
-        shadow=True, startangle=140, textprops={'fontsize': 10}
-    )
-    ax.set_title("Segment Distribution")
-    ax.axis('equal')
-    legend_labels = [f"{label} ({(count/total)*100:.1f}%)" for label, count in counts.items()]
-    ax.legend(wedges, legend_labels, title="Categories", loc="upper center",
-              bbox_to_anchor=(0.5, -0.1), ncol=2)
-    
-    # Save to BytesIO and encode as base64
-    buf = BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    plt.close(fig)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    return img_base64
-
-def plot_stacked_bar():
-    """Plot stacked bar chart and return as base64-encoded image."""
-    fig, ax = plt.subplots(figsize=(7.5, 6))
-    
-    # Collect question_intent and sub_intent data
-    intent_subintent_map = {}
-    for item in data:
-        q_intent = item.metadata.get('question_intent', 'Unknown')
-        sub_intent = item.metadata.get('sub_intent', 'Unknown')
-        if q_intent not in intent_subintent_map:
-            intent_subintent_map[q_intent] = Counter()
-        intent_subintent_map[q_intent][sub_intent] += 1
-
-    # Prepare data for plotting
-    question_intents = sorted(intent_subintent_map.keys())
-    all_sub_intents = sorted(set(sub_intent for counter in intent_subintent_map.values() for sub_intent in counter))
-    plot_data = np.zeros((len(all_sub_intents), len(question_intents)))
-
-    for i, sub_intent in enumerate(all_sub_intents):
-        for j, q_intent in enumerate(question_intents):
-            plot_data[i, j] = intent_subintent_map[q_intent].get(sub_intent, 0)
-
-    # Plot stacked bars
-    bottom = np.zeros(len(question_intents))
-    colors = plt.cm.Paired(np.linspace(0, 1, len(all_sub_intents)))
-    max_height = np.max(bottom + np.sum(plot_data, axis=0))
-    labeled_sub_intents = set()
-    patches = []
-
-    for i, sub_intent in enumerate(all_sub_intents):
-        bars = ax.bar(question_intents, plot_data[i], bottom=bottom, color=colors[i])
-        patches.append(bars[0])
-        for j, bar in enumerate(bars):
-            height = plot_data[i, j]
-            if height > 0.05 * max_height:
-                x = bar.get_x() + bar.get_width() / 2
-                y = bottom[j] + height / 2
-                ax.text(x, y, sub_intent, ha='center', va='center', fontsize=8, color='white',
-                        bbox=dict(facecolor='black', alpha=0.5, pad=1))
-                labeled_sub_intents.add(sub_intent)
-        bottom += plot_data[i]
-
-    # Add legend for unlabeled sub_intents on the right
-    unlabeled_sub_intents = [sub_intent for sub_intent in all_sub_intents if sub_intent not in labeled_sub_intents]
-    if unlabeled_sub_intents:
-        unlabeled_patches = [p for p, sub_intent in zip(patches, all_sub_intents) if sub_intent in unlabeled_sub_intents]
-        ax.legend(unlabeled_patches, unlabeled_sub_intents, title="Unlabeled Sub-Intents",
-                  loc="center left", bbox_to_anchor=(1.0, 0.5), ncol=1, fontsize=8)
-
-    # Customize plot
-    ax.set_title("Sub-Intent Distribution by Question Intent")
-    ax.set_xlabel("Question Intent")
-    ax.set_ylabel("Count")
-    ax.tick_params(axis='x', rotation=45)
-    
-    # Save to BytesIO and encode as base64
-    buf = BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    plt.close(fig)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    return img_base64
+selected_file_name = None
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    global data
-    if request.method == 'POST':
-        file = request.files.get('file')
-        if file and file.filename.endswith('.tsv'):
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filepath)
-            try:
-                data = load_query_set(filepath)
-                flash('File uploaded successfully!', 'success')
-            except Exception as e:
-                flash(f'Failed to load file: {str(e)}', 'error')
-            os.remove(filepath)  # Clean up
-        else:
-            flash('Please upload a valid .tsv file', 'error')
-        return redirect(url_for('index'))
+    """Handle file selection and loading."""
+    global data, selected_file_name
+    setup_logging(app)
+    ensure_folders_exist(app)
     
-    return render_template('index.html')
+    tsv_files = get_tsv_files(app)
+    
+    if request.method == 'POST':
+        selected_file = request.form.get('tsv_file')
+        if not selected_file:
+            app.logger.warning("No file selected")
+            flash('Please select a .tsv file', 'error')
+            return render_template(
+                'index.html',
+                tsv_files=tsv_files,
+                data_loaded=session.get('data_loaded', False)
+            )
+        
+        if selected_file not in tsv_files:
+            app.logger.warning(f"Invalid file selected: {selected_file}")
+            flash('Invalid file selected', 'error')
+            return render_template(
+                'index.html',
+                tsv_files=tsv_files,
+                data_loaded=session.get('data_loaded', False)
+            )
+        
+        filepath = os.path.join(app.config['DATA_FOLDER'], selected_file)
+        app.logger.info(f"Loading file: {selected_file}")
+        try:
+            data = load_file(filepath, app)
+            reset_session_and_globals()
+            selected_file_name = selected_file
+            flash('File loaded successfully!', 'success')
+            return redirect(url_for('data_table'))
+        except Exception as e:
+            session['data_loaded'] = False
+            flash(f'Failed to load file: {str(e)}', 'error')
+            return render_template(
+                'index.html',
+                tsv_files=tsv_files,
+                data_loaded=session.get('data_loaded', False)
+            )
+    
+    app.logger.debug("Rendering index page")
+    return render_template(
+        'index.html',
+        tsv_files=tsv_files,
+        data_loaded=session.get('data_loaded', False)
+    )
 
 @app.route('/data')
 def data_table():
-    global data, sort_column, sort_reverse
+    """Display filtered and sorted data table."""
+    global data
+    if not data:
+        app.logger.warning("No data loaded for data table")
+        return redirect(url_for('index'))
+    
+    search_params = get_search_params()
+    filtered_data = filter_data(data, search_params, app)
+    
+    app.logger.info(f"Search terms: question_intent='{search_params['question_intent']}', "
+                   f"sub_intent='{search_params['sub_intent']}', segment='{search_params['segment']}'")
+    app.logger.info(f"Filtered {len(filtered_data)} of {len(data)} rows")
+    if not filtered_data and data:
+        app.logger.debug(f"Sample metadata (first 3 rows): {[item.metadata for item in data[:3]]}")
+    
     column = request.args.get('sort')
-    if column in ['Question Intent', 'Sub Intent']:
-        if sort_column == column:
-            sort_reverse = not sort_reverse
-        else:
-            sort_column = column
-            sort_reverse = False
-        
-        key_map = {
-            'Question Intent': lambda x: x.metadata.get('question_intent', 'Unknown').lower(),
-            'Sub Intent': lambda x: x.metadata.get('sub_intent', 'Unknown').lower()
-        }
-        data.sort(key=key_map[column], reverse=sort_reverse)
+    filtered_data = sort_data(filtered_data, column, app)
     
-    table_data = [
-        {
-            'index': idx,
-            'text': item.query[0].get('text', 'No text available'),
-            'segment': item.metadata.get('segment', 'Unknown'),
-            'question_intent': item.metadata.get('question_intent', 'Unknown'),
-            'sub_intent': item.metadata.get('sub_intent', 'Unknown')
-        }
-        for idx, item in enumerate(data)
-    ]
+    table_data = prepare_table_data(filtered_data)
+    sort_indicators = get_sort_indicators()
     
-    sort_indicators = {
-        'Question Intent': ' ▲' if sort_column == 'Question Intent' and not sort_reverse else ' ▼' if sort_column == 'Question Intent' else '',
-        'Sub Intent': ' ▲' if sort_column == 'Sub Intent' and not sort_reverse else ' ▼' if sort_column == 'Sub Intent' else ''
-    }
-    
-    return render_template('data.html', data=table_data, sort_indicators=sort_indicators)
+    app.logger.debug("Rendering data table page")
+    return render_template(
+        'data.html',
+        data=table_data,
+        sort_indicators=sort_indicators,
+        search_params=search_params,
+        total_rows=len(data),
+        filtered_rows=len(filtered_data)
+    )
 
 @app.route('/charts')
 def charts():
+    """Render charts page with pie and stacked bar charts."""
+    global data
     if not data:
+        app.logger.warning("No data available for charts")
         return render_template('charts.html', error="No data available")
     
-    # Generate pie chart
-    segment_counter = Counter(item.metadata['segment'] for item in data)
-    pie_chart = plot_pie(segment_counter)
-    
-    # Generate stacked bar chart
-    bar_chart = plot_stacked_bar()
-    
-    return render_template('charts.html', pie_chart=pie_chart, bar_chart=bar_chart)
+    pie_chart, bar_chart = generate_charts(data, app)
+    app.logger.debug("Rendering charts page")
+    return render_template(
+        'charts.html',
+        pie_chart=pie_chart,
+        bar_chart=bar_chart
+    )
 
 @app.route('/edit/<int:index>', methods=['GET', 'POST'])
 def edit(index):
+    """Handle editing of a data point."""
+    global data
     if index >= len(data):
+        app.logger.error(f"Invalid data point index: {index}")
         flash('Invalid data point', 'error')
         return redirect(url_for('data_table'))
     
@@ -196,56 +136,119 @@ def edit(index):
     
     if request.method == 'POST':
         try:
-            new_query = {}
-            for field in query_fields:
-                value = request.form.get(f'query_{field}', '').strip()
-                try:
-                    new_query[field] = json.loads(value) if value else ''
-                except json.JSONDecodeError:
-                    new_query[field] = value
-            data_point.query[0] = new_query
+            data_point.query[0] = process_form_fields(query_fields, 'query')
+            data_point.metadata = process_form_fields(metadata_fields, 'metadata')
             
-            new_metadata = {}
-            for field in metadata_fields:
-                value = request.form.get(f'metadata_{field}', '').strip()
-                try:
-                    new_metadata[field] = json.loads(value) if value else ''
-                except json.JSONDecodeError:
-                    new_metadata[field] = value
-            data_point.metadata = new_metadata
+            save_data_to_file(os.path.join(app.config['DATA_FOLDER'], 'temp.tsv'), data)
             
-            # Save to temporary file
-            with open(os.path.join(app.config['UPLOAD_FOLDER'], 'temp.tsv'), 'w', encoding='utf-8') as f:
-                for dp in data:
-                    query_json = json.dumps(dp.query, ensure_ascii=False)
-                    metadata_json = json.dumps(dp.metadata, ensure_ascii=False)
-                    f.write(f"{query_json}\t{metadata_json}\n")
-            
+            app.logger.info(f"Data point {index} updated successfully")
             flash('Changes saved!', 'success')
             return redirect(url_for('data_table'))
         except Exception as e:
+            app.logger.error(f"Failed to save changes: {str(e)}")
             flash(f'Failed to save changes: {str(e)}', 'error')
     
     query_data = {k: json.dumps(v, indent=2) if isinstance(v, (dict, list)) else str(v) for k, v in data_point.query[0].items()}
     metadata_data = {k: json.dumps(v, indent=2) if isinstance(v, (dict, list)) else str(v) for k, v in data_point.metadata.items()}
     
-    return render_template('edit.html', index=index, query_fields=query_fields, metadata_fields=metadata_fields,
-                          query_data=query_data, metadata_data=metadata_data)
+    app.logger.debug(f"Rendering edit page for index {index}")
+    return render_template(
+        'edit.html',
+        index=index,
+        query_fields=query_fields,
+        metadata_fields=metadata_fields,
+        query_data=query_data,
+        metadata_data=metadata_data
+    )
+
+@app.route('/add', methods=['GET', 'POST'])
+def add():
+    """Handle adding a new data point."""
+    global data, selected_file_name
+    if not data:
+        app.logger.warning("No data loaded for adding new data point")
+        flash('Please load a dataset first', 'error')
+        return redirect(url_for('index'))
+    
+    data_point = data[0]
+    query_fields = sorted(data_point.query[0].keys()) if data_point.query else []
+    metadata_fields = sorted(data_point.metadata.keys())
+    
+    if request.method == 'POST':
+        try:
+            new_query = process_form_fields(query_fields, 'query')
+            new_metadata = process_form_fields(metadata_fields, 'metadata')
+            
+            new_data_point = QueryData(query=[new_query], metadata=new_metadata)
+            data.append(new_data_point)
+            
+            original_name = os.path.splitext(selected_file_name)[0]
+            added_filename, added_filepath = get_file_paths(original_name, 'ADDED_FOLDER', app)
+            append_data_to_file(added_filepath, new_data_point)
+            
+            save_data_to_file(os.path.join(app.config['DATA_FOLDER'], 'temp.tsv'), data)
+            
+            session['has_added_data'] = True
+            app.logger.info(f"New data point added, saved to {added_filename}")
+            flash('New data point added!', 'success')
+            return redirect(url_for('data_table'))
+        except Exception as e:
+            app.logger.error(f"Failed to add new data point: {str(e)}")
+            flash(f'Failed to add new data point: {str(e)}', 'error')
+    
+    query_data = {field: '' for field in query_fields}
+    metadata_data = {field: '' for field in metadata_fields}
+    
+    app.logger.debug("Rendering add page")
+    return render_template(
+        'add.html',
+        query_fields=query_fields,
+        metadata_fields=metadata_fields,
+        query_data=query_data,
+        metadata_data=metadata_data
+    )
 
 @app.route('/download')
 def download():
+    """Serve the modified data file for download."""
+    global data, selected_file_name
     if not data:
+        app.logger.warning("No data available for download")
         flash('No data to download', 'error')
         return redirect(url_for('index'))
     
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], 'query_set_modified.tsv')
-    with open(filepath, 'w', encoding='utf-8') as f:
-        for dp in data:
-            query_json = json.dumps(dp.query, ensure_ascii=False)
-            metadata_json = json.dumps(dp.metadata, ensure_ascii=False)
-            f.write(f"{query_json}\t{metadata_json}\n")
+    if not selected_file_name:
+        app.logger.warning("No file selected for download")
+        flash('No file selected', 'error')
+        return redirect(url_for('index'))
     
-    return send_file(filepath, as_attachment=True, download_name='query_set_modified.tsv')
+    original_name = os.path.splitext(selected_file_name)[0]
+    output_filename, filepath = get_file_paths(original_name, 'MODIFIED_FOLDER', app)
+    
+    save_data_to_file(filepath, data)
+    
+    app.logger.info(f"Serving download file: {output_filename}")
+    return send_file(filepath, as_attachment=True, download_name=output_filename)
+
+@app.route('/download_added')
+def download_added():
+    """Serve the added data file for download."""
+    global selected_file_name
+    if not selected_file_name:
+        app.logger.warning("No file selected for downloading added data")
+        flash('No file selected', 'error')
+        return redirect(url_for('index'))
+    
+    original_name = os.path.splitext(selected_file_name)[0]
+    added_filename, filepath = get_file_paths(original_name, 'ADDED_FOLDER', app)
+    
+    if not os.path.exists(filepath):
+        app.logger.warning(f"No added data file exists: {added_filename}")
+        flash('No added data available to download', 'error')
+        return redirect(url_for('data_table'))
+    
+    app.logger.info(f"Serving added data file: {added_filename}")
+    return send_file(filepath, as_attachment=True, download_name=added_filename)
 
 if __name__ == '__main__':
     app.run(debug=True)
