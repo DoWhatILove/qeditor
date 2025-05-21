@@ -1,82 +1,52 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Edit Data Point</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1 {
-            font-size: 20px;
-        }
-        .message {
-            padding: 10px;
-            margin: 10px 0;
-        }
-        .success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        label {
-            display: block;
-            margin-top: 10px;
-        }
-        textarea, input[type="text"] {
-            width: 100%;
-            padding: 5px;
-            font-size: 12px;
-            font-family: Arial, sans-serif;
-        }
-        textarea[name="query_text"] {
-            height: 120px; /* Approx 10 rows at 12px */
-        }
-        textarea:not([name="query_text"]), input[type="text"] {
-            height: 50px; /* Approx 3 rows at 12px */
-        }
-        button {
-            margin-top: 20px;
-            padding: 10px;
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Data Point {{ index }}</title>
+    <link rel="stylesheet" href="/static/css/data.css">
 </head>
 <body>
-    <h1>Edit Data Point {{ index }}</h1>
-    <p><a href="{{ url_for('index') }}">Select New Query Set</a> | <a href="{{ url_for('data_table') }}">View Data</a> | <a href="{{ url_for('charts') }}">View Charts</a> | <a href="{{ url_for('download') }}">Download Data</a></p>
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="message {{ category }}">{{ message }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-    <form method="post">
-        <h2>Query Fields</h2>
-        {% for field in query_fields %}
-            <label for="query_{{ field }}">{{ field }}</label>
-            <textarea name="query_{{ field }}" id="query_{{ field }}">{{ query_data[field] }}</textarea>
-        {% endfor %}
-        <h2>Metadata Fields</h2>
-        {% for field in metadata_fields %}
-            <label for="metadata_{{ field }}">{{ field }}</label>
-            {% if field in ['segment', 'question_intent', 'sub_intent'] %}
-                <input type="text" name="metadata_{{ field }}" id="metadata_{{ field }}" value="{{ metadata_data[field] }}">
-            {% else %}
-                <textarea name="metadata_{{ field }}" id="metadata_{{ field }}">{{ metadata_data[field] }}</textarea>
+    <div class="container">
+        <nav class="navbar">
+            <a href="{{ url_for('index') }}" class="nav-link">Select New Query Set</a>
+            <a href="{{ url_for('data_table') }}" class="nav-link">View Data</a>
+            <a href="{{ url_for('charts') }}" class="nav-link">View Charts</a>
+            <a href="{{ url_for('download') }}" class="nav-link">Download Data</a>
+        </nav>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
             {% endif %}
-        {% endfor %}
-        <button type="submit">Save Changes</button>
-    </form>
+        {% endwith %}
+        <h1>Edit Data Point {{ index }}</h1>
+        <form method="POST" action="{{ url_for('edit', index=index) }}">
+            <h2>Query Fields</h2>
+            {% for field in query_fields %}
+                <div class="form-group">
+                    <label for="query_{{ field }}">{{ field }}</label>
+                    <textarea name="query_{{ field }}" id="query_{{ field }}" placeholder="Enter {{ field }} (JSON or text)">{{ query_data[field] }}</textarea>
+                </div>
+            {% endfor %}
+            <h2>Metadata Fields</h2>
+            {% for field in metadata_fields %}
+                <div class="form-group">
+                    <label for="metadata_{{ field }}">{{ field }}</label>
+                    {% if field in ['segment', 'question_intent', 'sub_intent'] %}
+                        <select name="metadata_{{ field }}" id="metadata_{{ field }}">
+                            <option value="" disabled {% if not metadata_data[field] %}selected{% endif %}>Select {{ field }}</option>
+                            <option value="{{ metadata_data[field] }}" selected>{{ metadata_data[field] }}</option>
+                        </select>
+                    {% else %}
+                        <textarea name="metadata_{{ field }}" id="metadata_{{ field }}" placeholder="Enter {{ field }} (JSON or text)">{{ metadata_data[field] }}</textarea>
+                    {% endif %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="search-button">Save Changes</button>
+            <a href="{{ url_for('data_table') }}" class="search-button cancel-button">Cancel</a>
+        </form>
+    </div>
 </body>
 </html>

@@ -1,89 +1,40 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Charts</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-        }
-        h1 {
-            font-size: 20px;
-        }
-        h2 {
-            font-size: 16px;
-            text-align: center;
-        }
-        .message {
-            padding: 10px;
-            margin: 10px 0;
-        }
-        .error {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-        /* Chart container using Flexbox */
-        .chart-container {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 2vw;
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-        .chart {
-            min-width: 300px;
-            max-width: 100%;
-            text-align: center;
-        }
-        /* Pie chart container */
-        .chart.pie-chart {
-            flex: 1;
-        }
-        /* Stacked bar chart container */
-        .chart.stacked-bar-chart {
-            flex: 1.5;
-            min-width: 400px;
-        }
-        .chart img {
-            max-width: 100%;
-            height: auto;
-        }
-        /* Responsive adjustments */
-        @media (max-width: 800px) {
-            .chart-container {
-                flex-direction: column;
-                gap: 20px;
-            }
-            .chart, .chart.pie-chart, .chart.stacked-bar-chart {
-                min-width: 100%;
-                flex: 1;
-            }
-        }
-        @media (min-width: 1200px) {
-            .chart-container {
-                gap: 3vw;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/css/data.css">
 </head>
 <body>
-    <h1>Charts</h1>
-    <p><a href="{{ url_for('index') }}">Select New Query Set</a> | <a href="{{ url_for('data_table') }}">View Data</a> | <a href="{{ url_for('download') }}">Download Data</a></p>
-    {% if error %}
-        <div class="message error">{{ error }}</div>
-    {% else %}
-        <div class="chart-container">
-            <div class="chart pie-chart">
+    <div class="container">
+        <nav class="navbar">
+            <a href="{{ url_for('index') }}" class="nav-link">Select New Query Set</a>
+            <a href="{{ url_for('data_table') }}" class="nav-link">View Data</a>
+            <a href="{{ url_for('download') }}" class="nav-link">Download Data</a>
+        </nav>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        <h1>Charts</h1>
+        {% if error %}
+            <div class="flash-message error">{{ error }}</div>
+        {% else %}
+            <div id="spinner" class="spinner"></div>
+            <div class="chart-container">
                 <h2>Segment Distribution</h2>
-                <img src="data:image/png;base64,{{ pie_chart }}" alt="Segment Pie Chart">
+                <img src="data:image/png;base64,{{ pie_chart }}" alt="Segment Distribution Pie Chart" class="chart-image">
             </div>
-            <div class="chart stacked-bar-chart">
+            <div class="chart-container">
                 <h2>Sub-Intent Distribution by Question Intent</h2>
-                <img src="data:image/png;base64,{{ bar_chart }}" alt="Sub-Intent Stacked Bar Chart">
+                <img src="data:image/png;base64,{{ bar_chart }}" alt="Sub-Intent Stacked Bar Chart" class="chart-image">
             </div>
-        </div>
-    {% endif %}
+        {% endif %}
+    </div>
+    <script src="/static/js/spinner.js"></script>
 </body>
 </html>

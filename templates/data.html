@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Data Table</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/data.css') }}">
+    <link rel="stylesheet" href="/static/css/data.css">
 </head>
 <body>
     <div class="container">
@@ -17,55 +17,60 @@
                 <a href="{{ url_for('download_added') }}" class="nav-link">Download Added Data</a>
             {% endif %}
         </nav>
-
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
         <h1>Data Table</h1>
         <p class="row-count">Total rows: {{ total_rows }} | Filtered rows: {{ filtered_rows }}</p>
-
-        <form method="GET" action="{{ url_for('data_table') }}" class="search-form">
+        <form class="search-form" method="GET" action="{{ url_for('data_table') }}" id="search-form">
             <div class="form-group">
                 <label for="question_intent">Question Intent:</label>
-                <input type="text" id="question_intent" name="question_intent" value="{{ search_params.question_intent }}" placeholder="e.g., Information" aria-label="Filter by Question Intent">
+                <input type="text" name="question_intent" id="question_intent" value="{{ search_params.question_intent }}" placeholder="Enter question intent">
             </div>
             <div class="form-group">
                 <label for="sub_intent">Sub Intent:</label>
-                <input type="text" id="sub_intent" name="sub_intent" value="{{ search_params.sub_intent }}" placeholder="e.g., Definition" aria-label="Filter by Sub Intent">
+                <input type="text" name="sub_intent" id="sub_intent" value="{{ search_params.sub_intent }}" placeholder="Enter sub-intent">
             </div>
             <div class="form-group">
                 <label for="segment">Segment:</label>
-                <input type="text" id="segment" name="segment" value="{{ search_params.segment }}" placeholder="e.g., Technology" aria-label="Filter by Segment">
+                <input type="text" name="segment" id="segment" value="{{ search_params.segment }}" placeholder="Enter segment">
             </div>
-            <button type="submit" class="search-button">Filter</button>
+            <div class="form-group">
+                <button type="submit" class="search-button" onclick="showSpinner()">Filter</button>
+                <button type="button" class="search-button clear-button" onclick="clearFilters()">Clear Filters</button>
+            </div>
         </form>
-
-        <table role="grid" class="data-table">
+        <div id="spinner" class="spinner hidden"></div>
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th class="resizable" scope="col">Index</th>
-                    <th class="resizable" scope="col">Text</th>
-                    <th class="resizable" scope="col">Segment</th>
-                    <th class="resizable" scope="col">
-                        <a href="{{ url_for('data_table', sort='Question Intent', **search_params) }}">Question Intent{{ sort_indicators['Question Intent'] }}</a>
-                    </th>
-                    <th class="resizable" scope="col">
-                        <a href="{{ url_for('data_table', sort='Sub Intent', **search_params) }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a>
-                    </th>
-                    <th class="resizable" scope="col">Actions</th>
+                    <th class="resizable">Index</th>
+                    <th class="resizable">Text</th>
+                    <th class="resizable">Segment</th>
+                    <th class="resizable"><a href="{{ url_for('data_table', sort='Question Intent') }}">Question Intent{{ sort_indicators['Question Intent'] }}</a></th>
+                    <th class="resizable"><a href="{{ url_for('data_table', sort='Sub Intent') }}">Sub Intent{{ sort_indicators['Sub Intent'] }}</a></th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in data %}
-                <tr class="table-row">
-                    <td>{{ row.index }}</td>
-                    <td class="text-cell">{{ row.text }}</td>
-                    <td>{{ row.segment }}</td>
-                    <td>{{ row.question_intent }}</td>
-                    <td>{{ row.sub_intent }}</td>
-                    <td><a href="{{ url_for('edit', index=row.index) }}" class="action-link">Edit</a></td>
-                </tr>
+                    <tr class="table-row">
+                        <td>{{ row.index }}</td>
+                        <td class="text-cell">{{ row.text }}</td>
+                        <td>{{ row.segment }}</td>
+                        <td>{{ row.question_intent }}</td>
+                        <td>{{ row.sub_intent }}</td>
+                        <td><a href="{{ url_for('edit', index=row.index) }}" class="action-link">Edit</a></td>
+                    </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-    <script src="{{ url_for('static', filename='js/resize_columns.js') }}"></script>
+    <script src="/static/js/resize_columns.js"></script>
+    <script src="/static/js/spinner.js"></script>
 </body>
 </html>
