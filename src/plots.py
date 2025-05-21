@@ -1,41 +1,67 @@
-import matplotlib
-matplotlib.use('Agg')  # Set non-interactive backend before importing pyplot
-import matplotlib.pyplot as plt
-import numpy as np
+import json
 from collections import Counter
-from io import BytesIO
-import base64
+import numpy as np
+
+def generate_colors(n):
+    """Generate n distinct colors in HSL format, converted to hex."""
+    colors = []
+    for i in range(n):
+        # Use HSL with varying hue (0-360), fixed saturation (70%), and lightness (50%)
+        hue = (i * 360 / n) % 360
+        saturation = 70
+        lightness = 50
+        # Convert HSL to RGB and then to hex
+        h = hue / 360
+        s = saturation / 100
+        l = lightness / 100
+        if s == 0:
+            r = g = b = l
+        else:
+            def hue2rgb(p, q, t):
+                if t < 0:
+                    t += 1
+                if t > 1:
+                    t -= 1
+                if t < 1/6:
+                    return p + (q - p) * 6 * t
+                if t < 1/2:
+                    return q
+                if t < 2/3:
+                    return p + (q - p) * (2/3 - t) * 6
+                return p
+            q = l * (1 + s) if l < 0.5 else l + s - l * s
+            p = 2 * l - q
+            r = hue2rgb(p, q, h + 1/3)
+            g = hue2rgb(p, q, h)
+            b = hue2rgb(p, q, h - 1/3)
+        r = int(round(r * 255))
+        g = int(round(g * 255))
+        b = int(round(b * 255))
+        hex_color = f'#{r:02x}{g:02x}{b:02x}'
+        colors.append(hex_color)
+    return colors
 
 def plot_pie(counts):
-    """Create a pie chart and return as base64-encoded image."""
-    fig, ax = plt.subplots(figsize=(14, 7))
+    """Create JSON data for a Chart.js pie chart showing segment distribution."""
     labels = list(counts.keys())
-    sizes = list(counts.values())
-    total = sum(sizes)
-    colors = plt.cm.Paired(range(len(labels)))
-    explode = [0.1] * len(labels)
-    wedges, _, autotexts = ax.pie(
-        sizes, explode=explode, colors=colors, autopct='%1.1f%%',
-        shadow=True, startangle=140, textprops={'fontsize': 10}
-    )
-    ax.set_title("Segment Distribution")
-    ax.axis('equal')
-    legend_labels = [f"{label} ({(count/total)*100:.1f}%)" for label, count in counts.items()]
-    ax.legend(wedges, legend_labels, title="Categories", loc="upper center",
-              bbox_to_anchor=(0.5, -0.1), ncol=2)
-    
-    buf = BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    plt.close(fig)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    buf.close()
-    return img_base64
+    values = list(counts.values())
+    total = sum(values)
+    colors = generate_colors(len(labels))
+    # Calculate percentages for tooltips
+    percentages = [(count / total * 100) for count in values]
+    return {
+        'labels': labels,
+        'datasets': [{
+            'data': values,
+            'backgroundColor': colors,
+            'borderColor': colors,
+            'borderWidth': 1
+        }],
+        'percentages': percentages
+    }
 
 def plot_stacked_bar(data):
-    """Plot stacked bar chart and return as base64-encoded image."""
-    fig, ax = plt.subplots(figsize=(14, 7))
-    
+    """Create JSON data for a Chart.js stacked bar chart showing sub-intent by question intent."""
     intent_subintent_map = {}
     for item in data:
         q_intent = item.metadata.get('question_intent', 'Unknown')
@@ -46,48 +72,21 @@ def plot_stacked_bar(data):
 
     question_intents = sorted(intent_subintent_map.keys())
     all_sub_intents = sorted(set(sub_intent for counter in intent_subintent_map.values() for sub_intent in counter))
-    plot_data = np.zeros((len(all_sub_intents), len(question_intents)))
-
-    for i, sub_intent in enumerate(all_sub_intents):
-        for j, q_intent in enumerate(question_intents):
-            plot_data[i, j] = intent_subintent_map[q_intent].get(sub_intent, 0)
-
-    bottom = np.zeros(len(question_intents))
-    colors = plt.cm.Paired(np.linspace(0, 1, len(all_sub_intents)))
-    max_height = np.max(bottom + np.sum(plot_data, axis=0))
-    labeled_sub_intents = set()
-    patches = []
-
-    for i, sub_intent in enumerate(all_sub_intents):
-        bars = ax.bar(question_intents, plot_data[i], bottom=bottom, color=colors[i])
-        patches.append(bars[0])
-        for j, bar in enumerate(bars):
-            height = plot_data[i, j]
-            if height > 0.05 * max_height:
-                x = bar.get_x() + bar.get_width() / 2
-                y = bottom[j] + height / 2
-                ax.text(x, y, sub_intent, ha='center', va='center', fontsize=10, color='white',
-                        bbox=dict(facecolor='black', alpha=0.8, pad=2))
-                labeled_sub_intents.add(sub_intent)
-        bottom += plot_data[i]
-
-    unlabeled_sub_intents = [sub_intent for sub_intent in all_sub_intents if sub_intent not in labeled_sub_intents]
-    if unlabeled_sub_intents:
-        unlabeled_patches = [p for p, sub_intent in zip(patches, all_sub_intents) if sub_intent in unlabeled_sub_intents]
-        ax.legend(unlabeled_patches, unlabeled_sub_intents, title="Unlabeled Sub-Intents",
-                  loc="center left", bbox_to_anchor=(1.05, 0.5), ncol=1, fontsize=10)
-
-    ax.set_title("Sub-Intent Distribution by Question Intent", fontsize=14)
-    ax.set_xlabel("Question Intent", fontsize=12)
-    ax.set_ylabel("Count", fontsize=12)
-    ax.tick_params(axis='x', rotation=45, labelsize=10)
-    ax.tick_params(axis='y', labelsize=10)
+    colors = generate_colors(len(all_sub_intents))
     
-    plt.tight_layout()
-    buf = BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    plt.close(fig)
-    buf.seek(0)
-    img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-    buf.close()
-    return img_base64
+    datasets = []
+    for i, sub_intent in enumerate(all_sub_intents):
+        data_values = [intent_subintent_map[q_intent].get(sub_intent, 0) for q_intent in question_intents]
+        datasets.append({
+            'label': sub_intent,
+            'data': data_values,
+            'backgroundColor': colors[i],
+            'borderColor': colors[i],
+            'borderWidth': 1
+        })
+
+    return {
+        'labels': question_intents,
+        'datasets': datasets
+    }
+    

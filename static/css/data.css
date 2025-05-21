@@ -168,9 +168,12 @@ h2 {
 .chart-container {
     margin-bottom: 30px;
     text-align: center;
+    max-width: 800px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
-.chart-image {
+.chart-canvas {
     max-width: 100%;
     height: auto;
 }
@@ -279,5 +282,9 @@ th a:hover {
 
     th.resizable::after {
         width: 8px;
+    }
+
+    .chart-container {
+        max-width: 100%;
     }
 }

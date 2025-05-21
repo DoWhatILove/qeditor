@@ -105,13 +105,13 @@ def get_sort_indicators():
     }
 
 def generate_charts(data, app):
-    """Generate pie and stacked bar charts."""
+    """Generate JSON data for Chart.js pie and stacked bar charts."""
     segment_counter = Counter(item.metadata['segment'] for item in data)
-    app.logger.info("Generating segment pie chart")
+    app.logger.info("Generating segment pie chart data")
     pie_chart = plot_pie(segment_counter)
-    app.logger.info("Generating stacked bar chart")
+    app.logger.info("Generating stacked bar chart data")
     bar_chart = plot_stacked_bar(data)
-    return pie_chart, bar_chart
+    return json.dumps(pie_chart), json.dumps(bar_chart)
 
 def process_form_fields(fields, prefix):
     """Process form fields into a dictionary, handling JSON parsing."""

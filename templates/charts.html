@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Charts</title>
     <link rel="stylesheet" href="/static/css/data.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
     <div class="container">
@@ -25,16 +26,118 @@
             <div class="flash-message error">{{ error }}</div>
         {% else %}
             <div id="spinner" class="spinner"></div>
+            <div id="chart-error" class="flash-message error" style="display: none;">
+                Unable to render charts due to a data parsing error. Please try reloading the page or selecting a different file.
+            </div>
             <div class="chart-container">
                 <h2>Segment Distribution</h2>
-                <img src="data:image/png;base64,{{ pie_chart }}" alt="Segment Distribution Pie Chart" class="chart-image">
+                <canvas id="pie-chart" class="chart-canvas"></canvas>
             </div>
             <div class="chart-container">
                 <h2>Sub-Intent Distribution by Question Intent</h2>
-                <img src="data:image/png;base64,{{ bar_chart }}" alt="Sub-Intent Stacked Bar Chart" class="chart-image">
+                <canvas id="bar-chart" class="chart-canvas"></canvas>
             </div>
         {% endif %}
     </div>
     <script src="/static/js/spinner.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Parse pie chart data
+            let pieChartData;
+            try {
+                pieChartData = JSON.parse('{{ pie_chart | safe }}');
+            } catch (e) {
+                console.error('Error parsing pie chart JSON:', e);
+                document.getElementById('chart-error').style.display = 'block';
+                document.getElementById('spinner').classList.add('hidden');
+                return;
+            }
+
+            // Initialize pie chart
+            new Chart(document.getElementById('pie-chart'), {
+                type: 'pie',
+                data: pieChartData,
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: { size: 12 },
+                                boxWidth: 20
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.raw || 0;
+                                    const percentage = pieChartData.percentages[context.dataIndex];
+                                    return `${label}: ${value} (${percentage.toFixed(1)}%)`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const segment = pieChartData.labels[index];
+                            window.location.href = "{{ url_for('data_table') }}?segment=" + encodeURIComponent(segment);
+                        }
+                    }
+                }
+            });
+
+            // Parse stacked bar chart data
+            let barChartData;
+            try {
+                barChartData = JSON.parse('{{ bar_chart | safe }}');
+            } catch (e) {
+                console.error('Error parsing bar chart JSON:', e);
+                document.getElementById('chart-error').style.display = 'block';
+                document.getElementById('spinner').classList.add('hidden');
+                return;
+            }
+
+            // Initialize stacked bar chart
+            new Chart(document.getElementById('bar-chart'), {
+                type: 'bar',
+                data: barChartData,
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            stacked: true,
+                            title: { display: true, text: 'Question Intent', font: { size: 12 } }
+                        },
+                        y: {
+                            stacked: true,
+                            title: { display: true, text: 'Count', font: { size: 12 } }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: { font: { size: 12 }, boxWidth: 20 }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.dataset.label || '';
+                                    const value = context.raw || 0;
+                                    return `${label}: ${value}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Hide spinner after charts are rendered
+            setTimeout(() => {
+                document.getElementById('spinner').classList.add('hidden');
+            }, 200);
+        });
+    </script>
 </body>
 </html>
