@@ -29,13 +29,13 @@
             <div id="chart-error" class="flash-message error" style="display: none;">
                 Unable to render charts due to a data parsing error. Please try reloading the page or selecting a different file.
             </div>
-            <div class="chart-container">
+            <div class="chart-container pie-chart-container">
                 <h2>Segment Distribution</h2>
-                <canvas id="pie-chart" class="chart-canvas"></canvas>
+                <canvas id="pie-chart" class="chart-canvas" width="400" height="400"></canvas>
             </div>
-            <div class="chart-container">
+            <div class="chart-container bar-chart-container">
                 <h2>Sub-Intent Distribution by Question Intent</h2>
-                <canvas id="bar-chart" class="chart-canvas"></canvas>
+                <canvas id="bar-chart" class="chart-canvas" width="800" height="400"></canvas>
             </div>
         {% endif %}
     </div>
@@ -59,6 +59,7 @@
                 data: pieChartData,
                 options: {
                     responsive: true,
+                    maintainAspectRatio: true,
                     plugins: {
                         legend: {
                             position: 'bottom',
@@ -105,6 +106,7 @@
                 data: barChartData,
                 options: {
                     responsive: true,
+                    maintainAspectRatio: true,
                     scales: {
                         x: {
                             stacked: true,

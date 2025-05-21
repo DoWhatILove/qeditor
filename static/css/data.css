@@ -1,4 +1,4 @@
-* {
+   * {
     box-sizing: border-box;
 }
 
@@ -168,14 +168,23 @@ h2 {
 .chart-container {
     margin-bottom: 30px;
     text-align: center;
+}
+
+.pie-chart-container {
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.bar-chart-container {
     max-width: 800px;
     margin-left: auto;
     margin-right: auto;
 }
 
 .chart-canvas {
-    max-width: 100%;
-    height: auto;
+    width: 100% !important;
+    height: auto !important;
 }
 
 .data-table {
@@ -284,7 +293,11 @@ th a:hover {
         width: 8px;
     }
 
-    .chart-container {
+    .pie-chart-container {
+        max-width: 300px;
+    }
+
+    .bar-chart-container {
         max-width: 100%;
     }
-}
+} 
