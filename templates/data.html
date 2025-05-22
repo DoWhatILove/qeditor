@@ -40,11 +40,18 @@
                 <input type="text" name="segment" id="segment" value="{{ search_params.segment }}" placeholder="Enter segment">
             </div>
             <div class="form-group">
+                <label for="per_page">Rows per page:</label>
+                <select name="per_page" id="per_page" onchange="this.form.submit(); showSpinner()">
+                    {% for option in [10, 25, 50] %}
+                        <option value="{{ option }}" {% if pagination.per_page == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
                 <button type="submit" class="search-button" onclick="showSpinner()">Filter</button>
                 <button type="button" class="search-button clear-button" onclick="clearFilters()">Clear Filters</button>
             </div>
             <input type="hidden" name="page" value="{{ pagination.page }}">
-            <input type="hidden" name="per_page" value="{{ pagination.per_page }}">
         </form>
         <div id="spinner" class="spinner hidden"></div>
         <div class="pagination">

@@ -1,4 +1,4 @@
-   * {
+  * {
     box-sizing: border-box;
 }
 
@@ -344,4 +344,4 @@ th a:hover {
         align-items: flex-start;
         gap: 10px;
     }
-} 
+}

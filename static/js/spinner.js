@@ -27,8 +27,18 @@ function showSpinner() {
 
 function clearFilters() {
     const form = document.getElementById('search-form');
-    if (form) {
-        form.reset();
-        form.submit();
-    }
+    form.querySelector('#question_intent').value = '';
+    form.querySelector('#sub_intent').value = '';
+    form.querySelector('#segment').value = '';
+    form.querySelector('#per_page').value = '10'; // Reset to default
+    showSpinner();
+    form.submit();
 }
+
+// Show spinner when per_page dropdown changes
+document.addEventListener('DOMContentLoaded', function() {
+    const perPageSelect = document.getElementById('per_page');
+    if (perPageSelect) {
+        perPageSelect.addEventListener('change', showSpinner);
+    }
+});
