@@ -80,6 +80,12 @@ def data_table():
         app.logger.warning("No data loaded for data table")
         return redirect(url_for('index'))
     
+    # Get pagination parameters
+    page = int(request.args.get('page', 1))
+    per_page = int(request.args.get('per_page', 10))  # Default to 10 rows per page
+    if per_page not in [10, 25, 50]:
+        per_page = 10  # Restrict to valid options
+    
     search_params = get_search_params()
     filtered_data = filter_data(data, search_params, app)
     
@@ -92,8 +98,28 @@ def data_table():
     column = request.args.get('sort')
     filtered_data = sort_data(filtered_data, column, app)
     
-    table_data = prepare_table_data(filtered_data)
+    # Calculate pagination metadata
+    total_rows = len(filtered_data)
+    total_pages = (total_rows + per_page - 1) // per_page
+    page = max(1, min(page, total_pages))  # Ensure page is within bounds
+    start_idx = (page - 1) * per_page
+    end_idx = min(start_idx + per_page, total_rows)
+    
+    # Slice data for current page
+    paginated_data = filtered_data[start_idx:end_idx]
+    
+    table_data = prepare_table_data(paginated_data, start_idx)
     sort_indicators = get_sort_indicators()
+    
+    # Pagination metadata for template
+    pagination = {
+        'page': page,
+        'per_page': per_page,
+        'total_pages': total_pages,
+        'total_rows': total_rows,
+        'start_row': start_idx + 1,
+        'end_row': end_idx
+    }
     
     app.logger.debug("Rendering data table page")
     return render_template(
@@ -102,7 +128,8 @@ def data_table():
         sort_indicators=sort_indicators,
         search_params=search_params,
         total_rows=len(data),
-        filtered_rows=len(filtered_data)
+        filtered_rows=len(filtered_data),
+        pagination=pagination
     )
 
 @app.route('/charts')

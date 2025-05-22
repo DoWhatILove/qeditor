@@ -260,6 +260,44 @@ th a:hover {
     text-decoration: underline;
 }
 
+.pagination {
+    margin: 20px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.pagination-controls {
+    display: flex;
+    gap: 5px;
+}
+
+.pagination-link {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #007bff;
+    font-size: 14px;
+}
+
+.pagination-link:hover, .pagination-link:focus {
+    background-color: #e9ecef;
+}
+
+.pagination-link.active {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+    pointer-events: none;
+}
+
+.pagination-link.disabled {
+    color: #ccc;
+    border-color: #ccc;
+    pointer-events: none;
+}
+
 @media (max-width: 768px) {
     .container {
         width: 95vw;
@@ -299,5 +337,11 @@ th a:hover {
 
     .bar-chart-container {
         max-width: 100%;
+    }
+
+    .pagination {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
     }
 } 

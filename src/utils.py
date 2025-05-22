@@ -84,11 +84,11 @@ def sort_data(filtered_data, column, app):
     filtered_data.sort(key=key_map[column], reverse=sort_reverse)
     return filtered_data
 
-def prepare_table_data(filtered_data):
-    """Prepare data for table rendering."""
+def prepare_table_data(filtered_data, start_idx=0):
+    """Prepare data for table rendering with pagination offset."""
     return [
         {
-            'index': idx,
+            'index': start_idx + idx,
             'text': item.query[0].get('text', 'No text available'),
             'segment': str(item.metadata.get('segment', 'Unknown')),
             'question_intent': str(item.metadata.get('question_intent', 'Unknown')),
