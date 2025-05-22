@@ -24,20 +24,15 @@
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        <form method="post" action="{{ url_for('index') }}" id="load-file-form">
+        <form method="POST" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="tsv_file">Select a TSV file:</label>
-                <select name="tsv_file" id="tsv_file" required>
-                    <option value="" disabled selected>Select a file</option>
-                    {% for file in tsv_files %}
-                        <option value="{{ file }}">{{ file }}</option>
-                    {% endfor %}
-                </select>
+                <label for="tsv_file">Upload TSV File:</label>
+                <input type="file" name="tsv_file" id="tsv_file" accept=".tsv" required>
             </div>
-            <button type="submit" class="search-button" onclick="showSpinner()">Load File</button>
+            <div class="form-group">
+                <button type="submit" class="search-button">Upload and Load</button>
+            </div>
         </form>
-        <div id="spinner" class="spinner hidden"></div>
     </div>
-    <script src="/static/js/spinner.js"></script>
 </body>
 </html>

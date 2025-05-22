@@ -1,4 +1,4 @@
-  * {
+ * {
     box-sizing: border-box;
 }
 
@@ -80,7 +80,8 @@ h2 {
 
 .form-group input,
 .form-group textarea,
-.form-group select {
+.form-group select,
+.form-group input[type="file"] {
     padding: 8px;
     border: 1px solid #ccc;
     border-radius: 4px;
@@ -95,7 +96,8 @@ h2 {
 
 .form-group input:focus,
 .form-group textarea:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group input[type="file"]:focus {
     border-color: #007bff;
     outline: none;
 }
@@ -344,4 +346,4 @@ th a:hover {
         align-items: flex-start;
         gap: 10px;
     }
-}
+} 

@@ -3,7 +3,7 @@ import os
 from flask import Flask, request, render_template, redirect, url_for, flash, send_file, session
 from src.data import QueryData
 from src.utils import (
-    setup_logging, ensure_folders_exist, get_tsv_files, load_file, reset_session_and_globals,
+    setup_logging, ensure_folders_exist, load_file, reset_session_and_globals,
     get_search_params, filter_data, sort_data, prepare_table_data, get_sort_indicators,
     generate_charts, process_form_fields, save_data_to_file, append_data_to_file, get_file_paths
 )
@@ -21,56 +21,47 @@ selected_file_name = None
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    """Handle file selection and loading."""
+    """Handle file upload and loading."""
     global data, selected_file_name
     setup_logging(app)
     ensure_folders_exist(app)
     
-    tsv_files = get_tsv_files(app)
-    
     if request.method == 'POST':
-        selected_file = request.form.get('tsv_file')
-        if not selected_file:
+        if 'tsv_file' not in request.files:
+            app.logger.warning("No file uploaded")
+            flash('Please upload a .tsv file', 'error')
+            return render_template('index.html', data_loaded=session.get('data_loaded', False))
+        
+        file = request.files['tsv_file']
+        if file.filename == '':
             app.logger.warning("No file selected")
-            flash('Please select a .tsv file', 'error')
-            return render_template(
-                'index.html',
-                tsv_files=tsv_files,
-                data_loaded=session.get('data_loaded', False)
-            )
+            flash('Please upload a .tsv file', 'error')
+            return render_template('index.html', data_loaded=session.get('data_loaded', False))
         
-        if selected_file not in tsv_files:
-            app.logger.warning(f"Invalid file selected: {selected_file}")
-            flash('Invalid file selected', 'error')
-            return render_template(
-                'index.html',
-                tsv_files=tsv_files,
-                data_loaded=session.get('data_loaded', False)
-            )
+        if not file.filename.lower().endswith('.tsv'):
+            app.logger.warning(f"Invalid file type: {file.filename}")
+            flash('Only .tsv files are allowed', 'error')
+            return render_template('index.html', data_loaded=session.get('data_loaded', False))
         
-        filepath = os.path.join(app.config['DATA_FOLDER'], selected_file)
-        app.logger.info(f"Loading file: {selected_file}")
+        # Sanitize filename
+        filename = ''.join(c for c in file.filename if c.isalnum() or c in ('.', '_', '-'))
+        filepath = os.path.join(app.config['DATA_FOLDER'], filename)
+        
+        app.logger.info(f"Saving uploaded file: {filename}")
         try:
+            file.save(filepath)
             data = load_file(filepath, app)
             reset_session_and_globals()
-            selected_file_name = selected_file
-            flash('File loaded successfully!', 'success')
+            selected_file_name = filename
+            flash('File uploaded and loaded successfully!', 'success')
             return redirect(url_for('data_table'))
         except Exception as e:
             session['data_loaded'] = False
             flash(f'Failed to load file: {str(e)}', 'error')
-            return render_template(
-                'index.html',
-                tsv_files=tsv_files,
-                data_loaded=session.get('data_loaded', False)
-            )
+            return render_template('index.html', data_loaded=session.get('data_loaded', False))
     
     app.logger.debug("Rendering index page")
-    return render_template(
-        'index.html',
-        tsv_files=tsv_files,
-        data_loaded=session.get('data_loaded', False)
-    )
+    return render_template('index.html', data_loaded=session.get('data_loaded', False))
 
 @app.route('/data')
 def data_table():
