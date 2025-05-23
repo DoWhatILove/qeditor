@@ -1,10 +1,11 @@
 import json
 import os
 import shutil
+import logging
 from flask import Flask, request, render_template, redirect, url_for, flash, send_file, session, g
 from src.data import QueryData
 from src.utils import (
-    setup_logging, ensure_folders_exist, load_file, reset_session_and_globals,
+    ensure_folders_exist, load_file, reset_session_and_globals,
     get_search_params, filter_data, sort_data, prepare_table_data, get_sort_indicators,
     generate_charts, process_form_fields, save_data_to_file, append_data_to_file, get_file_paths
 )
@@ -15,10 +16,30 @@ app.config['DATA_FOLDER'] = 'data'
 app.config['MODIFIED_FOLDER'] = 'modified'
 app.config['ADDED_FOLDER'] = 'added'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-app.config['SESSION_COOKIE_SECURE'] = True  # Requires HTTPS in production
+app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # Sessions expire after 1 hour
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600
+
+def setup_logging():
+    """Configure logging with file and console handlers."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s',
+        handlers=[
+            logging.FileHandler('app.log'),
+            logging.StreamHandler()
+        ]
+    )
+    app.logger.setLevel(logging.INFO)
+
+def custom_json_dumps(obj):
+    """Custom JSON serializer for QueryData objects."""
+    def default_serializer(o):
+        if isinstance(o, QueryData):
+            return o.to_dict()
+        raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
+    return json.dumps(obj, default=default_serializer, ensure_ascii=False)
 
 def get_session_id():
     """Get or generate a unique session ID."""
@@ -44,18 +65,16 @@ def cleanup_on_shutdown(exception=None):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Handle file upload and loading."""
-    setup_logging(app)
+    setup_logging()
     
-    # Ensure session-specific folders exist
     session_id = get_session_id()
     user_data_folder = os.path.normpath(os.path.join(app.config['DATA_FOLDER'], session_id))
     user_modified_folder = os.path.normpath(os.path.join(app.config['MODIFIED_FOLDER'], session_id))
     user_added_folder = os.path.normpath(os.path.join(app.config['ADDED_FOLDER'], session_id))
     ensure_folders_exist(app, folders=[user_data_folder, user_modified_folder, user_added_folder])
-    g.session_id = session_id  # Store for cleanup
+    g.session_id = session_id
     
     if request.method == 'POST':
-        # Clean up previous session files before new upload
         cleanup_session_files(session_id)
         session.pop('data', None)
         session.pop('selected_file_name', None)
@@ -80,22 +99,18 @@ def index():
             flash('Only .tsv files are allowed', 'error')
             return render_template('index.html', data_loaded=session.get('data_loaded', False))
         
-        # Sanitize filename
         filename = ''.join(c for c in file.filename if c.isalnum() or c in ('.', '_', '-'))
         filepath = os.path.normpath(os.path.join(user_data_folder, filename))
         
         app.logger.info(f"Attempting to save uploaded file for session {session_id}: {filepath}")
         try:
-            # Ensure folder exists
             os.makedirs(user_data_folder, exist_ok=True)
-            # Save file
             file.save(filepath)
-            # Verify file exists
             if not os.path.exists(filepath):
                 app.logger.error(f"File save failed: {filepath} does not exist")
                 raise OSError(f"Failed to save file: {filepath}")
             app.logger.info(f"File saved successfully: {filepath}")
-            session['data'] = load_file(filepath, app)
+            session['data'] = [d.to_dict() for d in load_file(filepath, app)]
             reset_session_and_globals()
             session['selected_file_name'] = filename
             flash('File uploaded and loaded successfully!', 'success')
@@ -112,16 +127,19 @@ def index():
 @app.route('/data')
 def data_table():
     """Display filtered and sorted data table."""
-    data = session.get('data', [])
+    data = [QueryData.from_dict(d) for d in session.get('data', [])]
     if not data:
         app.logger.warning("No data loaded for data table")
         return redirect(url_for('index'))
     
-    # Get pagination parameters
-    page = int(request.args.get('page', 1))
-    per_page = int(request.args.get('per_page', 10))  # Default to 10 rows per page
+    try:
+        page = int(request.args.get('page', 1))
+        per_page = int(request.args.get('per_page', 10))
+    except ValueError:
+        page = 1
+        per_page = 10
     if per_page not in [10, 25, 50]:
-        per_page = 10  # Restrict to valid options
+        per_page = 10
     
     search_params = get_search_params()
     filtered_data = filter_data(data, search_params, app)
@@ -135,20 +153,17 @@ def data_table():
     column = request.args.get('sort')
     filtered_data = sort_data(filtered_data, column, app)
     
-    # Calculate pagination metadata
     total_rows = len(filtered_data)
     total_pages = (total_rows + per_page - 1) // per_page
-    page = max(1, min(page, total_pages))  # Ensure page is within bounds
+    page = max(1, min(page, total_pages))
     start_idx = (page - 1) * per_page
     end_idx = min(start_idx + per_page, total_rows)
     
-    # Slice data for current page
     paginated_data = filtered_data[start_idx:end_idx]
     
     table_data = prepare_table_data(paginated_data, start_idx)
     sort_indicators = get_sort_indicators()
     
-    # Pagination metadata for template
     pagination = {
         'page': page,
         'per_page': per_page,
@@ -172,7 +187,7 @@ def data_table():
 @app.route('/charts')
 def charts():
     """Render charts page with pie and stacked bar charts."""
-    data = session.get('data', [])
+    data = [QueryData.from_dict(d) for d in session.get('data', [])]
     if not data:
         app.logger.warning("No data available for charts")
         return render_template('charts.html', error="No data available")
@@ -188,7 +203,7 @@ def charts():
 @app.route('/edit/<int:index>', methods=['GET', 'POST'])
 def edit(index):
     """Handle editing of a data point."""
-    data = session.get('data', [])
+    data = [QueryData.from_dict(d) for d in session.get('data', [])]
     if index >= len(data):
         app.logger.error(f"Invalid data point index: {index}")
         flash('Invalid data point', 'error')
@@ -203,19 +218,15 @@ def edit(index):
             data_point.query[0] = process_form_fields(query_fields, 'query')
             data_point.metadata = process_form_fields(metadata_fields, 'metadata')
             
-            session_id = get_session_id()
-            temp_filepath = os.path.normpath(os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv'))
-            save_data_to_file(temp_filepath, data)
-            session['data'] = data  # Update session data
-            
-            app.logger.info(f"Data point {index} updated successfully for session {session_id}")
+            session['data'] = [d.to_dict() for d in data]
+            app.logger.info(f"Data point {index} updated successfully for session {get_session_id()}")
             flash('Changes saved!', 'success')
             return redirect(url_for('data_table'))
         except Exception as e:
             app.logger.error(f"Failed to save changes: {str(e)}")
             flash(f'Failed to save changes: {str(e)}', 'error')
     
-    query_data = {k: json.dumps(v, indent=2) if isinstance(v, (dict, list)) else str(v) for k, v in data_point.query[0].items()}
+    query_data = {k: json.dumps(v, indent=2) if isinstance(v, (dict, list)) else str(v) for k, v in data_point.query[0].items()} if data_point.query else {}
     metadata_data = {k: json.dumps(v, indent=2) if isinstance(v, (dict, list)) else str(v) for k, v in data_point.metadata.items()}
     
     app.logger.debug(f"Rendering edit page for index {index}")
@@ -231,7 +242,7 @@ def edit(index):
 @app.route('/add', methods=['GET', 'POST'])
 def add():
     """Handle adding a new data point."""
-    data = session.get('data', [])
+    data = [QueryData.from_dict(d) for d in session.get('data', [])]
     selected_file_name = session.get('selected_file_name')
     if not data:
         app.logger.warning("No data loaded for adding new data point")
@@ -255,10 +266,7 @@ def add():
             added_filename, added_filepath = get_file_paths(original_name, 'ADDED_FOLDER', app, session_id)
             append_data_to_file(added_filepath, new_data_point)
             
-            temp_filepath = os.path.normpath(os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv'))
-            save_data_to_file(temp_filepath, data)
-            
-            session['data'] = data
+            session['data'] = [d.to_dict() for d in data]
             session['has_added_data'] = True
             app.logger.info(f"New data point added for session {session_id}, saved to {added_filename}")
             flash('New data point added!', 'success')
@@ -282,7 +290,7 @@ def add():
 @app.route('/download')
 def download():
     """Serve the modified data file for download."""
-    data = session.get('data', [])
+    data = [QueryData.from_dict(d) for d in session.get('data', [])]
     selected_file_name = session.get('selected_file_name')
     if not data:
         app.logger.warning("No data available for download")

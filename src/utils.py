@@ -6,11 +6,6 @@ from flask import request, session
 from src.data import load_query_data
 from src.plots import plot_pie, plot_stacked_bar
 
-def setup_logging(app):
-    """Configure logging for the application."""
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
-    app.logger.setLevel(logging.INFO)
-
 def ensure_folders_exist(app, folders=None):
     """Create necessary folders if they don't exist."""
     if folders is None:
@@ -81,7 +76,7 @@ def prepare_table_data(filtered_data, start_idx=0):
     return [
         {
             'index': start_idx + idx,
-            'text': item.query[0].get('text', 'No text available'),
+            'text': item.query[0].get('text', 'No text available') if item.query else 'No query available',
             'segment': str(item.metadata.get('segment', 'Unknown')),
             'question_intent': str(item.metadata.get('question_intent', 'Unknown')),
             'sub_intent': str(item.metadata.get('sub_intent', 'Unknown'))
@@ -138,6 +133,6 @@ def get_file_paths(original_name, folder_key, app, session_id=None):
         folder = os.path.join(folder, session_id)
         os.makedirs(folder, exist_ok=True)
     filename = f"{original_name}_added.tsv" if folder_key == 'ADDED_FOLDER' else f"{original_name}_modified.tsv"
-    filepath = os.path.join(folder, filename)
+    filepath = os.path.normpath(os.path.join(folder, filename))
     return filename, filepath
     

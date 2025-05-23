@@ -1,16 +1,13 @@
 import json
 from collections import Counter
-import numpy as np
 
 def generate_colors(n):
     """Generate n distinct colors in HSL format, converted to hex."""
     colors = []
     for i in range(n):
-        # Use HSL with varying hue (0-360), fixed saturation (70%), and lightness (50%)
         hue = (i * 360 / n) % 360
         saturation = 70
         lightness = 50
-        # Convert HSL to RGB and then to hex
         h = hue / 360
         s = saturation / 100
         l = lightness / 100
@@ -45,9 +42,8 @@ def plot_pie(counts):
     """Create JSON data for a Chart.js pie chart showing segment distribution."""
     labels = list(counts.keys())
     values = list(counts.values())
-    total = sum(values)
+    total = sum(values) or 1
     colors = generate_colors(len(labels))
-    # Calculate percentages for tooltips
     percentages = [(count / total * 100) for count in values]
     return {
         'labels': labels,
@@ -89,4 +85,3 @@ def plot_stacked_bar(data):
         'labels': question_intents,
         'datasets': datasets
     }
-    
