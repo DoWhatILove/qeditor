@@ -14,6 +14,7 @@ import json
 def client():
     """Create a Flask test client with temporary session directory."""
     app.config['TESTING'] = True
+    app.secret_key = 'test_secret_key'
     app.config['SESSION_FILE_DIR'] = tempfile.mkdtemp()
     app.config['DATA_FOLDER'] = tempfile.mkdtemp()
     app.config['MODIFIED_FOLDER'] = tempfile.mkdtemp()

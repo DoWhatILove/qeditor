@@ -19,6 +19,7 @@ from src.data import QueryData
 def app():
     """Create a Flask app for testing."""
     app = Flask(__name__)
+    app.secret_key = 'test_secret_key'
     app.config['DATA_FOLDER'] = tempfile.mkdtemp()
     app.config['MODIFIED_FOLDER'] = tempfile.mkdtemp()
     app.config['ADDED_FOLDER'] = tempfile.mkdtemp()
@@ -150,4 +151,3 @@ def test_get_file_paths(app):
     filename, filepath = get_file_paths('test', 'MODIFIED_FOLDER', app, session_id)
     assert filename == 'test_modified.tsv'
     assert os.path.exists(os.path.dirname(filepath))
-    
