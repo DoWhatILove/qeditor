@@ -1,6 +1,7 @@
 import json
 import os
-from flask import Flask, request, render_template, redirect, url_for, flash, send_file, session
+import shutil
+from flask import Flask, request, render_template, redirect, url_for, flash, send_file, session, g
 from src.data import QueryData
 from src.utils import (
     setup_logging, ensure_folders_exist, load_file, reset_session_and_globals,
@@ -9,24 +10,60 @@ from src.utils import (
 )
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'supersecretkey')
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'replace_with_strong_random_key_in_production')
 app.config['DATA_FOLDER'] = 'data'
 app.config['MODIFIED_FOLDER'] = 'modified'
 app.config['ADDED_FOLDER'] = 'added'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['SESSION_COOKIE_SECURE'] = True  # Requires HTTPS in production
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # Sessions expire after 1 hour
 
-# In-memory storage
-data = []
-selected_file_name = None
+def get_session_id():
+    """Get or generate a unique session ID."""
+    if 'sid' not in session:
+        session['sid'] = os.urandom(16).hex()
+    return session['sid']
+
+def cleanup_session_files():
+    """Delete temporary files for the current session."""
+    session_id = session.get('sid')
+    if session_id:
+        for folder in [app.config['DATA_FOLDER'], app.config['MODIFIED_FOLDER'], app.config['ADDED_FOLDER']]:
+            user_folder = os.path.join(folder, session_id)
+            if os.path.exists(user_folder):
+                shutil.rmtree(user_folder)
+
+@app.teardown_appcontext
+def cleanup_on_shutdown(exception=None):
+    """Clean up session files on app shutdown or session expiry."""
+    if hasattr(g, 'session_id'):
+        cleanup_session_files()
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
     """Handle file upload and loading."""
-    global data, selected_file_name
     setup_logging(app)
-    ensure_folders_exist(app)
+    
+    # Ensure session-specific folders exist
+    session_id = get_session_id()
+    user_data_folder = os.path.join(app.config['DATA_FOLDER'], session_id)
+    user_modified_folder = os.path.join(app.config['MODIFIED_FOLDER'], session_id)
+    user_added_folder = os.path.join(app.config['ADDED_FOLDER'], session_id)
+    ensure_folders_exist(app, folders=[user_data_folder, user_modified_folder, user_added_folder])
+    g.session_id = session_id  # Store for cleanup
     
     if request.method == 'POST':
+        # Clean up previous session files before new upload
+        cleanup_session_files()
+        session.pop('data', None)
+        session.pop('selected_file_name', None)
+        session.pop('data_loaded', None)
+        session.pop('has_added_data', None)
+        session.pop('sort_column', None)
+        session.pop('sort_reverse', None)
+        
         if 'tsv_file' not in request.files:
             app.logger.warning("No file uploaded")
             flash('Please upload a .tsv file', 'error')
@@ -45,14 +82,14 @@ def index():
         
         # Sanitize filename
         filename = ''.join(c for c in file.filename if c.isalnum() or c in ('.', '_', '-'))
-        filepath = os.path.join(app.config['DATA_FOLDER'], filename)
+        filepath = os.path.join(user_data_folder, filename)
         
-        app.logger.info(f"Saving uploaded file: {filename}")
+        app.logger.info(f"Saving uploaded file for session {session_id}: {filename}")
         try:
             file.save(filepath)
-            data = load_file(filepath, app)
+            session['data'] = load_file(filepath, app)
             reset_session_and_globals()
-            selected_file_name = filename
+            session['selected_file_name'] = filename
             flash('File uploaded and loaded successfully!', 'success')
             return redirect(url_for('data_table'))
         except Exception as e:
@@ -66,7 +103,7 @@ def index():
 @app.route('/data')
 def data_table():
     """Display filtered and sorted data table."""
-    global data
+    data = session.get('data', [])
     if not data:
         app.logger.warning("No data loaded for data table")
         return redirect(url_for('index'))
@@ -126,7 +163,7 @@ def data_table():
 @app.route('/charts')
 def charts():
     """Render charts page with pie and stacked bar charts."""
-    global data
+    data = session.get('data', [])
     if not data:
         app.logger.warning("No data available for charts")
         return render_template('charts.html', error="No data available")
@@ -142,7 +179,7 @@ def charts():
 @app.route('/edit/<int:index>', methods=['GET', 'POST'])
 def edit(index):
     """Handle editing of a data point."""
-    global data
+    data = session.get('data', [])
     if index >= len(data):
         app.logger.error(f"Invalid data point index: {index}")
         flash('Invalid data point', 'error')
@@ -157,9 +194,12 @@ def edit(index):
             data_point.query[0] = process_form_fields(query_fields, 'query')
             data_point.metadata = process_form_fields(metadata_fields, 'metadata')
             
-            save_data_to_file(os.path.join(app.config['DATA_FOLDER'], 'temp.tsv'), data)
+            session_id = get_session_id()
+            temp_filepath = os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv')
+            save_data_to_file(temp_filepath, data)
+            session['data'] = data  # Update session data
             
-            app.logger.info(f"Data point {index} updated successfully")
+            app.logger.info(f"Data point {index} updated successfully for session {session_id}")
             flash('Changes saved!', 'success')
             return redirect(url_for('data_table'))
         except Exception as e:
@@ -182,7 +222,8 @@ def edit(index):
 @app.route('/add', methods=['GET', 'POST'])
 def add():
     """Handle adding a new data point."""
-    global data, selected_file_name
+    data = session.get('data', [])
+    selected_file_name = session.get('selected_file_name')
     if not data:
         app.logger.warning("No data loaded for adding new data point")
         flash('Please load a dataset first', 'error')
@@ -200,14 +241,17 @@ def add():
             new_data_point = QueryData(query=[new_query], metadata=new_metadata)
             data.append(new_data_point)
             
+            session_id = get_session_id()
             original_name = os.path.splitext(selected_file_name)[0]
-            added_filename, added_filepath = get_file_paths(original_name, 'ADDED_FOLDER', app)
+            added_filename, added_filepath = get_file_paths(original_name, 'ADDED_FOLDER', app, session_id)
             append_data_to_file(added_filepath, new_data_point)
             
-            save_data_to_file(os.path.join(app.config['DATA_FOLDER'], 'temp.tsv'), data)
+            temp_filepath = os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv')
+            save_data_to_file(temp_filepath, data)
             
+            session['data'] = data
             session['has_added_data'] = True
-            app.logger.info(f"New data point added, saved to {added_filename}")
+            app.logger.info(f"New data point added for session {session_id}, saved to {added_filename}")
             flash('New data point added!', 'success')
             return redirect(url_for('data_table'))
         except Exception as e:
@@ -229,7 +273,8 @@ def add():
 @app.route('/download')
 def download():
     """Serve the modified data file for download."""
-    global data, selected_file_name
+    data = session.get('data', [])
+    selected_file_name = session.get('selected_file_name')
     if not data:
         app.logger.warning("No data available for download")
         flash('No data to download', 'error')
@@ -240,33 +285,35 @@ def download():
         flash('No file selected', 'error')
         return redirect(url_for('index'))
     
+    session_id = get_session_id()
     original_name = os.path.splitext(selected_file_name)[0]
-    output_filename, filepath = get_file_paths(original_name, 'MODIFIED_FOLDER', app)
+    output_filename, filepath = get_file_paths(original_name, 'MODIFIED_FOLDER', app, session_id)
     
     save_data_to_file(filepath, data)
     
-    app.logger.info(f"Serving download file: {output_filename}")
+    app.logger.info(f"Serving download file for session {session_id}: {output_filename}")
     return send_file(filepath, as_attachment=True, download_name=output_filename)
 
 @app.route('/download_added')
 def download_added():
     """Serve the added data file for download."""
-    global selected_file_name
+    selected_file_name = session.get('selected_file_name')
     if not selected_file_name:
         app.logger.warning("No file selected for downloading added data")
         flash('No file selected', 'error')
         return redirect(url_for('index'))
     
+    session_id = get_session_id()
     original_name = os.path.splitext(selected_file_name)[0]
-    added_filename, filepath = get_file_paths(original_name, 'ADDED_FOLDER', app)
+    added_filename, filepath = get_file_paths(original_name, 'ADDED_FOLDER', app, session_id)
     
     if not os.path.exists(filepath):
-        app.logger.warning(f"No added data file exists: {added_filename}")
+        app.logger.warning(f"No added data file exists for session {session_id}: {added_filename}")
         flash('No added data available to download', 'error')
         return redirect(url_for('data_table'))
     
-    app.logger.info(f"Serving added data file: {added_filename}")
+    app.logger.info(f"Serving added data file for session {session_id}: {added_filename}")
     return send_file(filepath, as_attachment=True, download_name=added_filename)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()

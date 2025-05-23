@@ -6,23 +6,17 @@ from flask import request, session
 from src.data import load_query_data
 from src.plots import plot_pie, plot_stacked_bar
 
-# Global sort variables (managed externally)
-sort_column = None
-sort_reverse = False
-
 def setup_logging(app):
     """Configure logging for the application."""
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
     app.logger.setLevel(logging.INFO)
 
-def ensure_folders_exist(app):
+def ensure_folders_exist(app, folders=None):
     """Create necessary folders if they don't exist."""
-    for folder in [app.config['DATA_FOLDER'], app.config['MODIFIED_FOLDER'], app.config['ADDED_FOLDER']]:
+    if folders is None:
+        folders = [app.config['DATA_FOLDER'], app.config['MODIFIED_FOLDER'], app.config['ADDED_FOLDER']]
+    for folder in folders:
         os.makedirs(folder, exist_ok=True)
-
-def get_tsv_files(app):
-    """Return list of .tsv files in the data folder."""
-    return [f for f in os.listdir(app.config['DATA_FOLDER']) if f.endswith('.tsv')]
 
 def load_file(filepath, app):
     """Load data from a TSV file and return it."""
@@ -37,12 +31,11 @@ def load_file(filepath, app):
         raise
 
 def reset_session_and_globals():
-    """Reset session and global sort variables when loading a new file."""
-    global sort_column, sort_reverse
+    """Reset session and sort variables when loading a new file."""
     session['data_loaded'] = True
     session['has_added_data'] = False
-    sort_column = None
-    sort_reverse = False
+    session['sort_column'] = None
+    session['sort_reverse'] = False
 
 def get_search_params():
     """Extract search parameters from request arguments."""
@@ -66,22 +59,21 @@ def filter_data(data, search_params, app):
 
 def sort_data(filtered_data, column, app):
     """Sort filtered data by specified column."""
-    global sort_column, sort_reverse
     if column not in ['Question Intent', 'Sub Intent']:
         return filtered_data
     
-    app.logger.info(f"Sorting by {column}, reverse={sort_reverse}")
-    if sort_column == column:
-        sort_reverse = not sort_reverse
+    app.logger.info(f"Sorting by {column}, reverse={session.get('sort_reverse', False)}")
+    if session.get('sort_column') == column:
+        session['sort_reverse'] = not session.get('sort_reverse', False)
     else:
-        sort_column = column
-        sort_reverse = False
+        session['sort_column'] = column
+        session['sort_reverse'] = False
     
     key_map = {
         'Question Intent': lambda x: str(x.metadata.get('question_intent', 'Unknown')).lower(),
         'Sub Intent': lambda x: str(x.metadata.get('sub_intent', 'Unknown')).lower()
     }
-    filtered_data.sort(key=key_map[column], reverse=sort_reverse)
+    filtered_data.sort(key=key_map[column], reverse=session['sort_reverse'])
     return filtered_data
 
 def prepare_table_data(filtered_data, start_idx=0):
@@ -100,8 +92,8 @@ def prepare_table_data(filtered_data, start_idx=0):
 def get_sort_indicators():
     """Return sort indicators for table headers."""
     return {
-        'Question Intent': ' ▲' if sort_column == 'Question Intent' and not sort_reverse else ' ▼' if sort_column == 'Question Intent' else '',
-        'Sub Intent': ' ▲' if sort_column == 'Sub Intent' and not sort_reverse else ' ▼' if sort_column == 'Sub Intent' else ''
+        'Question Intent': ' ▲' if session.get('sort_column') == 'Question Intent' and not session.get('sort_reverse') else ' ▼' if session.get('sort_column') == 'Question Intent' else '',
+        'Sub Intent': ' ▲' if session.get('sort_column') == 'Sub Intent' and not session.get('sort_reverse') else ' ▼' if session.get('sort_column') == 'Sub Intent' else ''
     }
 
 def generate_charts(data, app):
@@ -139,8 +131,12 @@ def append_data_to_file(filepath, data_point):
         metadata_json = json.dumps(dp.metadata, ensure_ascii=False)
         f.write(f"{query_json}\t{metadata_json}\n")
 
-def get_file_paths(original_name, folder_key, app):
+def get_file_paths(original_name, folder_key, app, session_id=None):
     """Generate file paths and names for saving or downloading."""
+    folder = app.config[folder_key]
+    if session_id:
+        folder = os.path.join(folder, session_id)
+        os.makedirs(folder, exist_ok=True)
     filename = f"{original_name}_added.tsv" if folder_key == 'ADDED_FOLDER' else f"{original_name}_modified.tsv"
-    filepath = os.path.join(app.config[folder_key], filename)
+    filepath = os.path.join(folder, filename)
     return filename, filepath
