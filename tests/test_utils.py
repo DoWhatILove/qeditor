@@ -1,5 +1,8 @@
-import pytest
+import sys
 import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+import pytest
 import tempfile
 import json
 from flask import Flask
@@ -146,4 +149,3 @@ def test_get_file_paths(app):
     filename, filepath = get_file_paths('test', 'MODIFIED_FOLDER', app, session_id)
     assert filename == 'test_modified.tsv'
     assert os.path.exists(os.path.dirname(filepath))
-    
