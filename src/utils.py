@@ -1,6 +1,5 @@
 import os
 import json
-import logging
 from collections import Counter
 from flask import request, session
 from src.data import load_query_data
@@ -135,4 +134,3 @@ def get_file_paths(original_name, folder_key, app, session_id=None):
     filename = f"{original_name}_added.tsv" if folder_key == 'ADDED_FOLDER' else f"{original_name}_modified.tsv"
     filepath = os.path.normpath(os.path.join(folder, filename))
     return filename, filepath
-    

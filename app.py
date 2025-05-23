@@ -3,6 +3,7 @@ import os
 import shutil
 import logging
 from flask import Flask, request, render_template, redirect, url_for, flash, send_file, session, g
+from flask_session import Session
 from src.data import QueryData
 from src.utils import (
     ensure_folders_exist, load_file, reset_session_and_globals,
@@ -16,10 +17,14 @@ app.config['DATA_FOLDER'] = 'data'
 app.config['MODIFIED_FOLDER'] = 'modified'
 app.config['ADDED_FOLDER'] = 'added'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+app.config['SESSION_TYPE'] = 'filesystem'
+app.config['SESSION_FILE_DIR'] = 'flask_session'
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600
+
+Session(app)
 
 def setup_logging():
     """Configure logging with file and console handlers."""
@@ -32,14 +37,6 @@ def setup_logging():
         ]
     )
     app.logger.setLevel(logging.INFO)
-
-def custom_json_dumps(obj):
-    """Custom JSON serializer for QueryData objects."""
-    def default_serializer(o):
-        if isinstance(o, QueryData):
-            return o.to_dict()
-        raise TypeError(f"Object of type {type(o).__name__} is not JSON serializable")
-    return json.dumps(obj, default=default_serializer, ensure_ascii=False)
 
 def get_session_id():
     """Get or generate a unique session ID."""
@@ -334,4 +331,3 @@ def download_added():
 
 if __name__ == '__main__':
     app.run()
-    

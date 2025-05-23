@@ -1,4 +1,3 @@
-import json
 from collections import Counter
 
 def generate_colors(n):
