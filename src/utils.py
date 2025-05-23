@@ -140,3 +140,4 @@ def get_file_paths(original_name, folder_key, app, session_id=None):
     filename = f"{original_name}_added.tsv" if folder_key == 'ADDED_FOLDER' else f"{original_name}_modified.tsv"
     filepath = os.path.join(folder, filename)
     return filename, filepath
+    

@@ -48,9 +48,9 @@ def index():
     
     # Ensure session-specific folders exist
     session_id = get_session_id()
-    user_data_folder = os.path.join(app.config['DATA_FOLDER'], session_id)
-    user_modified_folder = os.path.join(app.config['MODIFIED_FOLDER'], session_id)
-    user_added_folder = os.path.join(app.config['ADDED_FOLDER'], session_id)
+    user_data_folder = os.path.normpath(os.path.join(app.config['DATA_FOLDER'], session_id))
+    user_modified_folder = os.path.normpath(os.path.join(app.config['MODIFIED_FOLDER'], session_id))
+    user_added_folder = os.path.normpath(os.path.join(app.config['ADDED_FOLDER'], session_id))
     ensure_folders_exist(app, folders=[user_data_folder, user_modified_folder, user_added_folder])
     g.session_id = session_id  # Store for cleanup
     
@@ -82,11 +82,19 @@ def index():
         
         # Sanitize filename
         filename = ''.join(c for c in file.filename if c.isalnum() or c in ('.', '_', '-'))
-        filepath = os.path.join(user_data_folder, filename)
+        filepath = os.path.normpath(os.path.join(user_data_folder, filename))
         
-        app.logger.info(f"Saving uploaded file for session {session_id}: {filename}")
+        app.logger.info(f"Attempting to save uploaded file for session {session_id}: {filepath}")
         try:
+            # Ensure folder exists
+            os.makedirs(user_data_folder, exist_ok=True)
+            # Save file
             file.save(filepath)
+            # Verify file exists
+            if not os.path.exists(filepath):
+                app.logger.error(f"File save failed: {filepath} does not exist")
+                raise OSError(f"Failed to save file: {filepath}")
+            app.logger.info(f"File saved successfully: {filepath}")
             session['data'] = load_file(filepath, app)
             reset_session_and_globals()
             session['selected_file_name'] = filename
@@ -94,6 +102,7 @@ def index():
             return redirect(url_for('data_table'))
         except Exception as e:
             session['data_loaded'] = False
+            app.logger.error(f"Failed to process file: {str(e)}")
             flash(f'Failed to load file: {str(e)}', 'error')
             return render_template('index.html', data_loaded=session.get('data_loaded', False))
     
@@ -195,7 +204,7 @@ def edit(index):
             data_point.metadata = process_form_fields(metadata_fields, 'metadata')
             
             session_id = get_session_id()
-            temp_filepath = os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv')
+            temp_filepath = os.path.normpath(os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv'))
             save_data_to_file(temp_filepath, data)
             session['data'] = data  # Update session data
             
@@ -246,7 +255,7 @@ def add():
             added_filename, added_filepath = get_file_paths(original_name, 'ADDED_FOLDER', app, session_id)
             append_data_to_file(added_filepath, new_data_point)
             
-            temp_filepath = os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv')
+            temp_filepath = os.path.normpath(os.path.join(app.config['DATA_FOLDER'], session_id, 'temp.tsv'))
             save_data_to_file(temp_filepath, data)
             
             session['data'] = data
@@ -317,3 +326,4 @@ def download_added():
 
 if __name__ == '__main__':
     app.run()
+    
