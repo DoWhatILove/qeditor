@@ -52,7 +52,7 @@ def test_index_get(client):
     """Test GET / renders index page."""
     rv = client.get('/')
     assert rv.status_code == 200
-    assert b'Upload a .tsv file' in rv.data
+    assert b'Upload TSV File:' in rv.data
 
 def test_index_post_upload(client, sample_tsv):
     """Test POST / with valid TSV upload."""

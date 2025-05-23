@@ -30,7 +30,7 @@ def test_plot_pie():
     assert result['labels'] == ['regular', 'premium']
     assert result['datasets'][0]['data'] == [2, 1]
     assert len(result['datasets'][0]['backgroundColor']) == 2
-    assert result['percentages'] == [66.66666666666667, 33.33333333333333]
+    assert result['percentages'] == pytest.approx([66.66666666666667, 33.33333333333333])
 
 def test_plot_pie_empty():
     """Test plot_pie handles empty counts."""
@@ -48,3 +48,4 @@ def test_plot_stacked_bar(sample_data):
     assert result['datasets'][0]['label'] == 'sub1'
     assert result['datasets'][0]['data'] == [1, 1]  # sub1 in intent1, intent2
     assert result['datasets'][1]['data'] == [1, 0]  # sub2 in intent1, intent2
+    

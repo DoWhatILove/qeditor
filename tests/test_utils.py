@@ -128,6 +128,7 @@ def test_process_form_fields(app):
 def test_save_data_to_file(sample_data):
     """Test save_data_to_file writes TSV."""
     fd, path = tempfile.mkstemp(suffix='.tsv')
+    os.close(fd)
     save_data_to_file(path, sample_data)
     with open(path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -138,6 +139,7 @@ def test_save_data_to_file(sample_data):
 def test_append_data_to_file(sample_data):
     """Test append_data_to_file appends to TSV."""
     fd, path = tempfile.mkstemp(suffix='.tsv')
+    os.close(fd)
     append_data_to_file(path, sample_data[0])
     with open(path, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -151,4 +153,3 @@ def test_get_file_paths(app):
     filename, filepath = get_file_paths('test', 'MODIFIED_FOLDER', app, session_id)
     assert filename == 'test_modified.tsv'
     assert os.path.exists(os.path.dirname(filepath))
-    

@@ -5,3 +5,5 @@ added/
 modified/
 flask_session/
 app.log
+coverage.txt
+test_output.txt
