@@ -128,7 +128,7 @@ def append_data_to_file(filepath, data_point):
     """Append a single data point to a TSV file."""
     with open(filepath, 'a', encoding='utf-8') as f:
         query_json = json.dumps(data_point.query, ensure_ascii=False)
-        metadata_json = json.dumps(dp.metadata, ensure_ascii=False)
+        metadata_json = json.dumps(data_point.metadata, ensure_ascii=False)
         f.write(f"{query_json}\t{metadata_json}\n")
 
 def get_file_paths(original_name, folder_key, app, session_id=None):

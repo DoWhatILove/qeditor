@@ -26,9 +26,8 @@ def get_session_id():
         session['sid'] = os.urandom(16).hex()
     return session['sid']
 
-def cleanup_session_files():
-    """Delete temporary files for the current session."""
-    session_id = session.get('sid')
+def cleanup_session_files(session_id):
+    """Delete temporary files for the given session ID."""
     if session_id:
         for folder in [app.config['DATA_FOLDER'], app.config['MODIFIED_FOLDER'], app.config['ADDED_FOLDER']]:
             user_folder = os.path.join(folder, session_id)
@@ -38,8 +37,9 @@ def cleanup_session_files():
 @app.teardown_appcontext
 def cleanup_on_shutdown(exception=None):
     """Clean up session files on app shutdown or session expiry."""
-    if hasattr(g, 'session_id'):
-        cleanup_session_files()
+    session_id = g.get('session_id')
+    if session_id:
+        cleanup_session_files(session_id)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -56,7 +56,7 @@ def index():
     
     if request.method == 'POST':
         # Clean up previous session files before new upload
-        cleanup_session_files()
+        cleanup_session_files(session_id)
         session.pop('data', None)
         session.pop('selected_file_name', None)
         session.pop('data_loaded', None)
