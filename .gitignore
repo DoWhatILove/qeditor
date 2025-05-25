@@ -1,10 +1,15 @@
 venv/
 __pycache__/
+.pytest_cache/
 data/
 added/
 modified/
 flask_session/
 app.log
-coverage.txt
-test_output.txt
+coverage/
+htmlcov/
 .coverage
+coverage.txt
+coverage.lcov
+coverage.xml
+test_output.txt

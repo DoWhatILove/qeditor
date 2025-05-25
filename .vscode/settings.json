@@ -1,0 +1,19 @@
+{
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "runItOn": {
+        "commands": [
+            {
+                "match": "\\.py$",
+                "isAsync": true,
+                "isShellCommand": false,
+                "cmd": "testing.runAll"
+            }
+        ]
+    },
+    "coverage-gutters.coverageFileNames": [
+        "coverage/lcov.info"
+    ],
+    "coverage-gutters.showLineCoverage": true,
+    "coverage-gutters.showGutterCoverage": true
+}
